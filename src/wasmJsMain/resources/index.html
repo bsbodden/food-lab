@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morsel — food delivery</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #0f1320; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; }
+        .phone { background: #0b0d12; border-radius: 40px; padding: 11px; transform-origin: center center;
+            box-shadow: 0 22px 56px rgba(0,0,0,.5), inset 0 0 0 2px #232938; }
+        .screen { width: 393px; height: 852px; border-radius: 31px; overflow: hidden; background: #f6f7f9; }
+        iframe { width: 100%; height: 100%; border: 0; display: block; }
+    </style>
+</head>
+<body>
+    <div class="phone" id="phone"><div class="screen"><iframe src="app.html" title="Morsel"></iframe></div></div>
+    <script>
+        function fit() { document.getElementById('phone').style.transform = 'scale(' + Math.min(1, (window.innerHeight - 40) / 876) + ')'; }
+        window.addEventListener('resize', fit); fit();
+    </script>
+</body>
+</html>

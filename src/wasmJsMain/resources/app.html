@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morsel (app)</title>
+    <link href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f6f7f9; }
+        canvas { display: block; outline: none; }
+        .maplibregl-ctrl-attrib { font-size: 9px; }
+    </style>
+    <script>
+        // KMPilot MapView wasm adapter glue — owns the maplibre-gl-js map for the Compose HtmlElementView host.
+        window.KMap = {
+            mount: function (el, style, lng, lat, zoom) {
+                if (el._map || typeof maplibregl === 'undefined') return;
+                var m = new maplibregl.Map({ container: el, style: style, center: [lng, lat], zoom: zoom });
+                el._map = m; el._ready = false; el._q = [];
+                m.on('load', function () { el._ready = true; var q = el._q; el._q = []; q.forEach(function (f) { f(); }); });
+            },
+            _when: function (el, f) { if (el._ready) f(); else { el._q = el._q || []; el._q.push(f); } },
+            route: function (el, coordsJson, color) {
+                var m = el._map; if (!m) return;
+                this._when(el, function () {
+                    var coords = JSON.parse(coordsJson);
+                    var gj = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
+                    if (m.getSource('route')) { m.getSource('route').setData(gj); return; }
+                    m.addSource('route', { type: 'geojson', data: gj });
+                    m.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9 } });
+                    m.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': 5 } });
+                    if (coords.length > 1) {
+                        var b = new maplibregl.LngLatBounds(coords[0], coords[0]);
+                        coords.forEach(function (c) { b.extend(c); });
+                        m.fitBounds(b, { padding: 48, duration: 0 });
+                    }
+                });
+            },
+            pins: function (el, plng, plat, pcolor, dlng, dlat, dcolor) {
+                var m = el._map; if (!m || el._pins) return;
+                this._when(el, function () {
+                    if (el._pins) return; el._pins = true;
+                    new maplibregl.Marker({ color: pcolor }).setLngLat([plng, plat]).addTo(m); // pickup (restaurant)
+                    new maplibregl.Marker({ color: dcolor }).setLngLat([dlng, dlat]).addTo(m); // dropoff (home)
+                });
+            },
+            courier: function (el, lng, lat, color) {
+                var m = el._map; if (!m) return;
+                this._when(el, function () {
+                    if (!el._courier) {
+                        var d = document.createElement('div');
+                        d.style.cssText = 'width:18px;height:18px;border-radius:50%;background:' + color + ';border:3px solid #fff;box-shadow:0 0 0 5px ' + color + '55';
+                        el._courier = new maplibregl.Marker({ element: d }).setLngLat([lng, lat]).addTo(m);
+                    } else { el._courier.setLngLat([lng, lat]); }
+                });
+            },
+            destroy: function (el) { if (el._map) { el._map.remove(); el._map = null; el._pins = false; el._courier = null; } }
+        };
+    </script>
+</head>
+<body>
+    <script type="application/javascript" src="food-lab.js"></script>
+</body>
+</html>

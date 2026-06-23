@@ -1,0 +1,81 @@
+package dev.kmpilot.food
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.ComposeViewport
+import com.arkivanov.decompose.DefaultComponentContext
+import com.arkivanov.essenty.lifecycle.LifecycleRegistry
+import com.arkivanov.essenty.lifecycle.resume
+import dev.kmpilot.components.media.warmImages
+import dev.kmpilot.food.data.FoodRepository
+import dev.kmpilot.food.domain.DeliveryStatus
+import dev.kmpilot.food.domain.Telemetry
+import dev.kmpilot.food.presentation.RootComponent
+import dev.kmpilot.food.ui.RootContent
+import kotlinx.browser.document
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * Morsel — the food-delivery preview. The order/cart engine + delivery statechart are shared, tested commonMain;
+ * the live-track screen consumes COURIER TELEMETRY streamed from the emulator over the sensor bridge.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+fun main() {
+    val lifecycle = LifecycleRegistry()
+    val scope = CoroutineScope(Dispatchers.Main)
+    val repo = FoodRepository()
+    val root = RootComponent(DefaultComponentContext(lifecycle), scope, repo)
+    lifecycle.resume()
+    warmImages(scope, repo.imageUrls())
+    startBridgePosting()
+    startBridges(scope, root)
+    ComposeViewport(document.body!!) {
+        MaterialTheme(
+            colorScheme = lightColorScheme(
+                primary = Color(0xFF2F9E44), background = Color(0xFFF6F7F9), surface = Color.White,
+                onPrimary = Color.White, onBackground = Color(0xFF1A1D24), onSurface = Color(0xFF1A1D24),
+            ),
+        ) { RootContent(root) }
+    }
+}
+
+@Serializable
+private data class TelemetryDto(val progress: Float = 0f, val status: String = "Confirmed", val etaMin: Int = 0, val driverName: String = "", val vehicle: String = "")
+
+private fun startBridges(scope: CoroutineScope, root: RootComponent) {
+    installListener()
+    scope.launch {
+        var lastTel = ""
+        while (true) {
+            delay(150)
+            val cmd = readPendingNav(); if (cmd.isNotEmpty()) { clearPendingNav(); root.navigateTo(cmd) }
+            val tel = readTelemetry()
+            if (tel.isNotEmpty() && tel != lastTel) {
+                lastTel = tel
+                runCatching {
+                    val d = Json.decodeFromString<TelemetryDto>(tel)
+                    Telemetry(d.progress, DeliveryStatus.valueOf(d.status), d.etaMin, d.driverName, d.vehicle)
+                }.getOrNull()?.let { root.onTelemetry(it) }
+            }
+        }
+    }
+}
+
+private fun startBridgePosting() {
+    js("setInterval(function(){ try { if (window.parent && window.parent !== window) { window.parent.postMessage({ type: 'kmpilot', appGraph: globalThis.__appGraph, currentScreen: globalThis.__currentScreen, chartSpec: globalThis.__chartSpec, screen: globalThis.__screen }, '*'); } } catch (e) {} }, 400)")
+}
+
+private fun installListener() {
+    js("window.addEventListener('message', function(e){ var d=e.data; if(!d) return; if (d.type==='kmpilot-cmd' && d.navigate) globalThis.__pendingNav = d.navigate; if (d.type==='kmpilot-sensor' && d.sensor==='telemetry') globalThis.__telemetry = JSON.stringify(d.value); })")
+}
+
+private fun readPendingNav(): String = js("(globalThis.__pendingNav || '')")
+private fun clearPendingNav() { js("globalThis.__pendingNav = null") }
+private fun readTelemetry(): String = js("(globalThis.__telemetry || '')")
