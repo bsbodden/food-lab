@@ -1,19 +1,12 @@
 package dev.kmpilot.food
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.ComposeViewport
-import com.arkivanov.decompose.DefaultComponentContext
-import com.arkivanov.essenty.lifecycle.LifecycleRegistry
-import com.arkivanov.essenty.lifecycle.resume
-import dev.kmpilot.components.media.warmImages
-import dev.kmpilot.food.data.FoodRepository
 import dev.kmpilot.food.domain.DeliveryStatus
 import dev.kmpilot.food.domain.Telemetry
 import dev.kmpilot.food.presentation.RootComponent
-import dev.kmpilot.food.ui.RootContent
+import dev.kmpilot.food.ui.App
+import dev.kmpilot.food.ui.buildRoot
 import kotlinx.browser.document
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,27 +16,17 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Morsel — the food-delivery preview. The order/cart engine + delivery statechart are shared, tested commonMain;
- * the live-track screen consumes COURIER TELEMETRY streamed from the emulator over the sensor bridge.
+ * Morsel — the food-delivery preview (the catalog's `preview` entry; renders like the Android/iOS app would).
+ * The order/cart engine + delivery statechart are shared, tested commonMain; the live-track screen consumes
+ * COURIER TELEMETRY streamed from the emulator over the sensor bridge.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
-    val lifecycle = LifecycleRegistry()
     val scope = CoroutineScope(Dispatchers.Main)
-    val repo = FoodRepository()
-    val root = RootComponent(DefaultComponentContext(lifecycle), scope, repo)
-    lifecycle.resume()
-    warmImages(scope, repo.imageUrls())
-    startBridgePosting()
-    startBridges(scope, root)
-    ComposeViewport(document.body!!) {
-        MaterialTheme(
-            colorScheme = lightColorScheme(
-                primary = Color(0xFF2F9E44), background = Color(0xFFF6F7F9), surface = Color.White,
-                onPrimary = Color.White, onBackground = Color(0xFF1A1D24), onSurface = Color(0xFF1A1D24),
-            ),
-        ) { RootContent(root) }
-    }
+    val root = buildRoot(scope)
+    startBridgePosting() // stream the screen graph + live state to the editor (wasm preview only)
+    startBridges(scope, root) // accept navigate commands + courier telemetry from the editor
+    ComposeViewport(document.body!!) { App(root) }
 }
 
 @Serializable

@@ -27,7 +27,7 @@ import org.jetbrains.skia.Image as SkiaImage
  * Kotlin/Wasm path. Decoded bitmaps are cached by URL.
  */
 @Composable
-fun AsyncImage(url: String, modifier: Modifier = Modifier, fallback: @Composable () -> Unit = {}) {
+actual fun AsyncImage(url: String, modifier: Modifier, fallback: @Composable () -> Unit) {
     var bmp by remember(url) { mutableStateOf(ImageCache.peek(url)) }
     LaunchedEffect(url) { if (bmp == null) bmp = ImageCache.load(url) }
     val b = bmp
@@ -60,7 +60,7 @@ private object ImageCache {
 }
 
 /** Warm the cache for a set of images (call at startup) so cards show real photos immediately. */
-fun warmImages(scope: CoroutineScope, urls: List<String>) {
+actual fun warmImages(scope: CoroutineScope, urls: List<String>) {
     urls.distinct().forEach { url -> scope.launch { ImageCache.load(url) } }
 }
 
