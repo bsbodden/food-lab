@@ -67,6 +67,28 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 implementation("androidx.activity:activity-compose:1.10.1")
+                // Coil3 — real remote-image loading on Android. Uses Coil's BUNDLED OkHttp network layer
+                // (coil-network-okhttp) rather than the coil-network-ktor3 path: ktor-client-core 3.2.0 ships
+                // methods with spaces in their names, which D8 rejects on this minSdk (needs DEX format 040),
+                // breaking dexing of the APK. coil-network-okhttp auto-registers the same network fetcher and
+                // pulls no Ktor, so it dexes cleanly and produces identical real-image behavior. (iOS keeps the
+                // coil-network-ktor3 + ktor-client-darwin path — Kotlin/Native has no dexing step.)
+                implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+                implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
+            }
+        }
+        // iosMain is the intermediate source set created by the default hierarchy template; it does not exist
+        // yet when this sourceSets {} block body runs, so configure it via the live `all {}` hook which fires
+        // when the template materializes it (eager `by getting` / `named()` are too early here).
+        all {
+            if (name == "iosMain") {
+                dependencies {
+                    // Coil3 — real remote-image loading on iOS. coil-network-ktor3 + the Darwin Ktor
+                    // engine AUTO-register the network fetcher; no manual ImageLoader setup needed.
+                    implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+                    implementation("io.coil-kt.coil3:coil-network-ktor3:3.2.0")
+                    implementation("io.ktor:ktor-client-darwin:3.2.0")
+                }
             }
         }
     }
