@@ -1,20 +1,32 @@
 package dev.kmpilot.components.map
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import dev.kmpilot.food.domain.Geo
+import androidx.compose.ui.unit.dp
 import dev.kmpilot.food.domain.LatLng
+import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.rememberCameraState
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.style.BaseStyle
+import org.maplibre.spatialk.geojson.Feature
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.LineString
+import org.maplibre.spatialk.geojson.Point
+import org.maplibre.spatialk.geojson.Position
 
 /**
- * Android `actual` — a STYLIZED stand-in map drawn with a Compose [Canvas]: a light background, the route
- * [polyline] as a colored line, and the [markers] (pickup/dropoff/courier) as circles. lat/lng are normalized
- * to the canvas bounds (computed from the polyline + markers). Real MapLibre Native is a FOLLOW-UP — this keeps
- * the Tracking screen functional + compiling on the real target. Shared with the iOS `actual`.
+ * Android `actual` — a REAL MapLibre vector map (MapLibre Native, via MapLibre Compose). Renders the
+ * OpenFreeMap basemap from [styleUrl], the OSRM route [polyline] as a LineLayer (white casing + accent line),
+ * and the pickup/dropoff/courier [markers] as CircleLayers. The courier marker MOVES as its [MapMarker.at]
+ * updates — `rememberGeoJsonSource` re-sends the feature data on recomposition. iOS keeps the Canvas
+ * stand-in until the SPM link path is proven green; wasm uses maplibre-gl-js. Same surface, per-platform adapter.
  */
 @Composable
 actual fun MapView(
@@ -25,42 +37,45 @@ actual fun MapView(
     styleUrl: String,
     modifier: Modifier,
 ) {
-    CanvasMap(polyline, markers, modifier)
-}
-
-@Composable
-internal fun CanvasMap(polyline: List<LatLng>, markers: List<MapMarker>, modifier: Modifier) {
-    val all = polyline + markers.map { it.at }
-    Canvas(modifier.background(Color(0xFFE9EDF1))) {
-        if (all.isEmpty()) return@Canvas
-        val (sw, ne) = Geo.bounds(all)
-        val pad = 0.12f
-        val w = size.width
-        val h = size.height
-        fun toOffset(p: LatLng): Offset {
-            val latSpan = (ne.lat - sw.lat).takeIf { it != 0.0 } ?: 1.0
-            val lngSpan = (ne.lng - sw.lng).takeIf { it != 0.0 } ?: 1.0
-            val nx = ((p.lng - sw.lng) / lngSpan).toFloat()
-            val ny = ((p.lat - sw.lat) / latSpan).toFloat()
-            // lat grows upward → flip y so north is up; pad keeps pins off the edges
-            val x = (pad + nx * (1 - 2 * pad)) * w
-            val y = (pad + (1 - ny) * (1 - 2 * pad)) * h
-            return Offset(x, y)
-        }
+    val camera = rememberCameraState(
+        firstPosition = CameraPosition(target = Position(center.lng, center.lat), zoom = zoom),
+    )
+    MaplibreMap(modifier = modifier, baseStyle = BaseStyle.Uri(styleUrl), cameraState = camera) {
         if (polyline.size >= 2) {
-            val courierColor = markers.firstOrNull { it.kind == MarkerKind.Courier }?.color ?: 0xFF2F9E44L
-            val path = Path()
-            polyline.forEachIndexed { i, p ->
-                val o = toOffset(p)
-                if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
-            }
-            drawPath(path, color = Color(courierColor), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f))
+            val routeColor = markers.firstOrNull { it.kind == MarkerKind.Courier }?.color ?: 0xFF2F9E44L
+            val routeSource = rememberGeoJsonSource(
+                GeoJsonData.Features(
+                    FeatureCollection(
+                        listOf(
+                            Feature(
+                                geometry = LineString(polyline.map { Position(it.lng, it.lat) }),
+                                properties = null,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            LineLayer(id = "route-casing", source = routeSource, color = const(Color.White), width = const(8.dp))
+            LineLayer(id = "route", source = routeSource, color = const(Color(routeColor)), width = const(5.dp))
         }
         markers.forEach { m ->
-            val o = toOffset(m.at)
-            val r = if (m.kind == MarkerKind.Courier) 11f else 9f
-            drawCircle(Color.White, radius = r + 3f, center = o)
-            drawCircle(Color(m.color), radius = r, center = o)
+            key(m.kind) {
+                val src = rememberGeoJsonSource(
+                    GeoJsonData.Features(
+                        FeatureCollection(
+                            listOf(Feature(geometry = Point(Position(m.at.lng, m.at.lat)), properties = null)),
+                        ),
+                    ),
+                )
+                CircleLayer(
+                    id = "marker-${m.kind}",
+                    source = src,
+                    radius = const(if (m.kind == MarkerKind.Courier) 9.dp else 7.dp),
+                    color = const(Color(m.color)),
+                    strokeColor = const(Color.White),
+                    strokeWidth = const(3.dp),
+                )
+            }
         }
     }
 }

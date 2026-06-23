@@ -75,6 +75,8 @@ kotlin {
                 // coil-network-ktor3 + ktor-client-darwin path — Kotlin/Native has no dexing step.)
                 implementation("io.coil-kt.coil3:coil-compose:3.2.0")
                 implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")
+                // real MapLibre vector map on Android (iOS keeps the Canvas stand-in until the SPM path is green)
+                implementation("org.maplibre.compose:maplibre-compose:0.13.0")
             }
         }
         // iosMain is the intermediate source set created by the default hierarchy template; it does not exist
@@ -96,7 +98,7 @@ kotlin {
 
 android {
     namespace = "dev.kmpilot.food"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "dev.kmpilot.food"
         minSdk = 24
