@@ -8,6 +8,7 @@ import com.arkivanov.decompose.router.stack.pop
 import com.arkivanov.decompose.router.stack.pushNew
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.value.Value
+import dev.kmpilot.components.location.LocationProvider
 import dev.kmpilot.food.data.FoodRepository
 import dev.kmpilot.food.domain.CartLine
 import dev.kmpilot.food.domain.CartLogic
@@ -30,7 +31,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class RestaurantsComponent(ctx: ComponentContext, repo: FoodRepository, val onOpen: (String) -> Unit) : ComponentContext by ctx {
+class RestaurantsComponent(
+    ctx: ComponentContext, repo: FoodRepository,
+    val locatedAt: StateFlow<LatLng?>, val onLocate: () -> Unit, val onOpen: (String) -> Unit,
+) : ComponentContext by ctx {
     val restaurants: List<Restaurant> = repo.restaurants()
 }
 
@@ -70,6 +74,12 @@ class RootComponent(
     private val _telemetry = MutableStateFlow<Telemetry?>(null)
     val telemetry: StateFlow<Telemetry?> = _telemetry.asStateFlow()
 
+    // device location via the location/LocationProvider component — "locate me" resolves the real GPS fix
+    private val location = LocationProvider()
+    private val _locatedAt = MutableStateFlow<LatLng?>(null)
+    val locatedAt: StateFlow<LatLng?> = _locatedAt.asStateFlow()
+    fun locateMe() { scope.launch { _locatedAt.value = location.current() } }
+
     private val nav = StackNavigation<Config>()
     val stack: Value<ChildStack<Config, Child>> = childStack(
         source = nav, serializer = Config.serializer(), initialConfiguration = Config.Restaurants,
@@ -108,7 +118,7 @@ class RootComponent(
     }
 
     private fun child(config: Config, childCtx: ComponentContext): Child = when (config) {
-        Config.Restaurants -> Child.Restaurants(RestaurantsComponent(childCtx, repo, onOpen = {
+        Config.Restaurants -> Child.Restaurants(RestaurantsComponent(childCtx, repo, locatedAt, ::locateMe, onOpen = {
             currentRestaurant = repo.restaurant(it); nav.pushNew(Config.Menu(it))
         }))
         is Config.Menu -> Child.Menu(MenuComponent(childCtx, repo, config.id, cart, onAdd = ::addToCart,

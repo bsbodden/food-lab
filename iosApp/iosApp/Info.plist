@@ -25,6 +25,9 @@
     <!-- REQUIRED by Compose Multiplatform's iOS PlistSanityCheck — without it the app throws on launch. -->
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <!-- location/LocationProvider — CoreLocation requestWhenInUseAuthorization needs this usage string. -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Morsel uses your location to set your delivery address.</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UIApplicationSceneManifest</key>
