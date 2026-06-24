@@ -2,8 +2,10 @@ package dev.kmpilot.food.domain
 
 /** Framework-free POJOs. Money is in integer cents (no float drift — the Tier-1 money invariant). */
 
-/** A geographic point (WGS-84). Used for real addresses, the OSRM route, and the courier position. */
-data class LatLng(val lat: Double, val lng: Double)
+/** A geographic point (WGS-84). Used for real addresses, the OSRM route, and the courier position. Now the
+ *  component library's shared type (so MapView stays app-agnostic) — a typealias keeps the food domain/OSRM/
+ *  telemetry/Geo code unchanged. */
+typealias LatLng = dev.kmpilot.components.map.LatLng
 
 data class Restaurant(
     val id: String,

@@ -2,7 +2,6 @@ package dev.kmpilot.components.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import dev.kmpilot.food.domain.LatLng
 
 /** The keyless OpenFreeMap (OpenStreetMap) vector style — same URL on every platform, no API key. */
 const val OPENFREEMAP_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
