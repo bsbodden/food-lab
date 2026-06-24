@@ -1,6 +1,7 @@
 # XcodeGen spec — generates iosApp.xcodeproj in CI (avoids a hand-authored, fragile project.pbxproj).
-# Links the pre-built Kotlin/Native framework (FoodApp) for the iOS Simulator. `xcodegen generate` in the
-# workflow produces the .xcodeproj; xcodebuild then builds the .app (no signing → the free Appetize path).
+# Links the pre-built Kotlin/Native framework (FoodApp) + MapLibre.framework (fetched by spmForKmp/SwiftPM and
+# staged beside FoodApp by the workflow). `xcodegen generate` produces the .xcodeproj; xcodebuild builds the
+# .app (no signing → the free Appetize path).
 name: iosApp
 options:
   bundleIdPrefix: dev.kmpilot
@@ -22,11 +23,31 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
-        # the Kotlin framework, pre-built by `./gradlew linkDebugFrameworkIosSimulatorArm64`
+        # both frameworks live here (FoodApp from linkDebugFramework…; MapLibre.framework copied in by the workflow)
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(PROJECT_DIR)/../build/bin/iosSimulatorArm64/debugFramework
+        # link order is LOAD-BEARING: the Kotlin framework (FoodApp) MUST precede MapLibre — both statically bundle
+        # HarfBuzz; reversed, Compose text rendering silently breaks (CMP-8882). -ObjC/-lc++/-lsqlite3 are required
+        # by MapLibre Native. We link via these flags (deps below are embed-only, link:false) to control the order.
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -ObjC
+          - -lc++
+          - -framework
+          - FoodApp
+          - -framework
+          - MapLibre
+          - -lsqlite3
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/Frameworks"
     dependencies:
       - framework: ../build/bin/iosSimulatorArm64/debugFramework/FoodApp.framework
         embed: true
         codeSign: false
+        link: false
+      - framework: ../build/bin/iosSimulatorArm64/debugFramework/MapLibre.framework
+        embed: true
+        codeSign: false
+        link: false

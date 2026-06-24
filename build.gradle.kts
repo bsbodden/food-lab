@@ -1,3 +1,5 @@
+import io.github.frankois944.spmForKmp.swiftPackageConfig
+import java.net.URI
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 // Morsel — a food-delivery app (On-demand/Delivery archetype): browse → menu → cart → a LIVE MAP TRACK screen
@@ -11,6 +13,7 @@ plugins {
     kotlin("plugin.compose") version "2.4.0"
     id("org.jetbrains.compose") version "1.11.1"
     id("com.android.application") version "8.13.2" // last AGP 8.x — still supports single-module KMP (AGP 9 dropped it)
+    id("io.github.frankois944.spmForKmp") version "1.9.4" // SwiftPM bridge → MapLibre Native framework for iOS
 }
 
 repositories {
@@ -32,8 +35,23 @@ kotlin {
     androidTarget() // the Android target → APK (buildable on this Linux box with the SDK)
     // iOS targets — the REAL mobile target. Declaring them is fine on Linux; only the compile/link needs macOS.
     // Skip iosX64 (MapLibre Compose has no iosX64 artifact; modern sims are arm64).
-    listOf(iosArm64(), iosSimulatorArm64()).forEach {
-        it.binaries.framework { baseName = "FoodApp"; isStatic = true }
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework { baseName = "FoodApp"; isStatic = true }
+        // MapLibre Native, fetched via SwiftPM at link time (only runs on macOS / the iOS link tasks — a no-op for
+        // the android/wasm/jvm builds on Linux). `exportToKotlin` surfaces the MapLibre symbols maplibre-compose needs.
+        target.swiftPackageConfig {
+            dependency {
+                remotePackageVersion(
+                    url = URI("https://github.com/maplibre/maplibre-gl-native-distribution.git"),
+                    products = { add("MapLibre", exportToKotlin = true) },
+                    packageName = "maplibre-gl-native-distribution",
+                    version = "6.25.1",
+                )
+            }
+        }
+        val variant = if (target.name == "iosArm64") "arm64-apple-ios" else "arm64-apple-ios-simulator"
+        val rpath = "${layout.buildDirectory.get()}/spmKmpPlugin/${target.name}/scratch/$variant/release/"
+        target.binaries.all { linkerOpts("-F$rpath", "-rpath", rpath) }
     }
 
     sourceSets {
@@ -90,6 +108,8 @@ kotlin {
                     implementation("io.coil-kt.coil3:coil-compose:3.2.0")
                     implementation("io.coil-kt.coil3:coil-network-ktor3:3.2.0")
                     implementation("io.ktor:ktor-client-darwin:3.2.0")
+                    // real MapLibre map on iOS too (MapLibre Native via spmForKmp above); same MaplibreMap code as Android
+                    implementation("org.maplibre.compose:maplibre-compose:0.13.0")
                 }
             }
         }

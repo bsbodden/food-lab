@@ -41,7 +41,19 @@ jobs:
             https://raw.githubusercontent.com/gradle/gradle/v8.13.0/gradle/wrapper/gradle-wrapper.jar
 
       - name: Build the Kotlin/Native framework (iOS Simulator, arm64)
+        # this link task also triggers spmForKmp → SwiftPM resolves + builds MapLibre.framework under build/spmKmpPlugin/
         run: ./gradlew :linkDebugFrameworkIosSimulatorArm64 --no-daemon --stacktrace
+
+      - name: Stage MapLibre.framework (built by spmForKmp) beside the Kotlin framework
+        run: |
+          set -euo pipefail
+          DEST=build/bin/iosSimulatorArm64/debugFramework
+          SRC=$(find build/spmKmpPlugin -type d -name MapLibre.framework | grep -i simulator | head -1 || true)
+          [ -z "$SRC" ] && SRC=$(find build/spmKmpPlugin -type d -name MapLibre.framework | head -1 || true)
+          echo "MapLibre.framework source: ${SRC:-NOT FOUND}"
+          test -n "$SRC"
+          cp -R "$SRC" "$DEST/"
+          ls -la "$DEST"
 
       - name: Install XcodeGen
         run: brew install xcodegen
